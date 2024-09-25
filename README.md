@@ -222,7 +222,7 @@ uint64_t bytes_popped() const; // Total number of bytes cumulatively popped from
 #include <cstdint>
 #include <string>
 #include <string_view>
-#include <vector>
+#include <queue>
 
 class Reader;
 class Writer;
@@ -243,13 +243,14 @@ public:
 
 protected:
   // Please add any additional state to the ByteStream here, and not to the Writer and Reader interfaces.
-  uint64_t capacity_;
+  uint64_t capacity_ {};
+  uint64_t nbytes_pushed_ {};	// bytestream中压入的总字节数
+  uint64_t nbytes_popped_ {};	// bytestream中弹出的总数
+  uint64_t nbytes_buffered_ {};	// bytestream中现在的字节数
+  bool is_closed_ {};
   bool error_ {};
-  // 下面四行为补充
-  std::vector<char> buf_;
-  uint64_t nread_;
-  uint64_t nwrite_;
-  bool is_closed_;
+  std::queue<std::string> buf_ {};	// 缓冲区
+  std::string_view view_wnd_ {};
 };
 
 class Writer : public ByteStream
@@ -290,91 +291,98 @@ void read( Reader& reader, uint64_t len, std::string& out );
 
 using namespace std;
 
-ByteStream::ByteStream( uint64_t capacity ) : capacity_( capacity ),buf_(vector<char>(capacity_)) ,nread_(0), nwrite_(0), is_closed_(false){}
+ByteStream::ByteStream( uint64_t capacity ) : capacity_( capacity ){}
 
 bool Writer::is_closed() const
 {
-  // Your code here.
   return is_closed_;
-  // return false;
 }
 
+/*
+  写函数：
+  1. 首先判断bytestream是否关闭若已关闭则退出
+  2. 若未关闭则处理data的长度，防止越界
+  3. 维护各变量并将data写入缓冲区
+  4. 如果此时窗口的大小为0则将新加入buf的数据给到窗口
+*/
 void Writer::push( string data )
 {
-  for (const auto &item : data) {
-    if (nwrite_ >= nread_ + capacity_) {
-      return;
-    }
-    buf_[nwrite_ % capacity_] = item;	// 很优雅的字节流，实现了可循环利用空间
-    ++nwrite_;
+  if ( is_closed() ) {
+    return;
+  }
+  if ( data.size() > available_capacity() ) {
+    data.resize( available_capacity() );
+  }
+
+  if ( !data.empty() ) {
+    nbytes_pushed_ += data.size();
+    nbytes_buffered_ += data.size();
+    buf_.emplace( move(data) );
+  }
+  if ( view_wnd_.empty() && !buf_.empty() ) {
+    view_wnd_ = buf_.front();
   }
 }
 
 void Writer::close()
 {
-  // Your code here.
-  is_closed_ = true;
+  if ( !is_closed_ ) {
+    is_closed_ = true;
+  }
 }
 
 uint64_t Writer::available_capacity() const
 {
-  // Your code here.
-  return capacity_ - (nwrite_ - nread_);
-  // return {};
+  return capacity_ - nbytes_buffered_;
 }
 
 uint64_t Writer::bytes_pushed() const
 {
-  // Your code here.
-  return nwrite_;
-  // return {};
+  return nbytes_pushed_;
 }
 
 bool Reader::is_finished() const
 {
-  // Your code here.
-  // return nread_ == capacity_;
-  // return {};
-  return is_closed_ && nread_ == nwrite_;
+
+  return is_closed_ && bytes_buffered() == 0;
 }
 
 uint64_t Reader::bytes_popped() const
 {
-  // Your code here.
-  return nread_;
-  // return nread_;
-  // return {};
+  return nbytes_popped_;
 }
 
 string_view Reader::peek() const
 {
-  // Your code here.
-  if (nread_ == nwrite_) return {};
-  string_view sv(&buf_[nread_ % capacity_], 1);
-  return sv;
-  // return {};
+  return view_wnd_;
 }
 
+/*
+  删除字节：
+  1. 由于底层采用了queue<string>当缓冲区容器，所以需要按照单个string的长度来弹出
+  2. 小于的部分直接弹出窗口的内容即可
+*/
 void Reader::pop( uint64_t len )
 {
-  // (void)len;
-  // Your code here.
-  for (uint64_t i = 0; i < len; ++i) {
-    if (nread_ < nwrite_) {
-      ++nread_;
-    }
-    else {
-      return;
-    }
+  uint64_t temp = len;
+  while ( temp >= view_wnd_.size() && temp != 0 ) {
+    temp -= view_wnd_.size();
+    buf_.pop();
+    view_wnd_ = buf_.empty() ? ""sv : buf_.front();
   }
+  if ( !view_wnd_.empty() ) {
+    view_wnd_.remove_prefix( temp );
+  }
+
+  nbytes_buffered_ -= len;
+  nbytes_popped_ += len;
 }
 
 uint64_t Reader::bytes_buffered() const
 {
-  // Your code here.
-  return nwrite_ - nread_;
-  // return {};
+  return nbytes_buffered_;
 }
+
 ```
 
 在build目录下make：
