@@ -399,33 +399,32 @@ uint64_t Reader::bytes_buffered() const
 然后make check0
 
 ```bash
-make check0
-Test project /home/cat/proj/cs144/lab0/minnow/build
+Test project /home/sniffstherose/cs144/minnow/build
       Start  1: compile with bug-checkers
- 1/10 Test  #1: compile with bug-checkers ........   Passed    0.08 sec
+ 1/10 Test  #1: compile with bug-checkers ........   Passed    1.32 sec
       Start  2: t_webget
- 2/10 Test  #2: t_webget .........................   Passed    1.19 sec
+ 2/10 Test  #2: t_webget .........................   Passed    1.22 sec
       Start  3: byte_stream_basics
- 3/10 Test  #3: byte_stream_basics ...............   Passed    0.02 sec
+ 3/10 Test  #3: byte_stream_basics ...............   Passed    0.04 sec
       Start  4: byte_stream_capacity
- 4/10 Test  #4: byte_stream_capacity .............   Passed    0.01 sec
+ 4/10 Test  #4: byte_stream_capacity .............   Passed    0.06 sec
       Start  5: byte_stream_one_write
- 5/10 Test  #5: byte_stream_one_write ............   Passed    0.02 sec
+ 5/10 Test  #5: byte_stream_one_write ............   Passed    0.06 sec
       Start  6: byte_stream_two_writes
- 6/10 Test  #6: byte_stream_two_writes ...........   Passed    0.01 sec
+ 6/10 Test  #6: byte_stream_two_writes ...........   Passed    0.05 sec
       Start  7: byte_stream_many_writes
- 7/10 Test  #7: byte_stream_many_writes ..........   Passed    0.04 sec
+ 7/10 Test  #7: byte_stream_many_writes ..........   Passed    0.08 sec
       Start  8: byte_stream_stress_test
- 8/10 Test  #8: byte_stream_stress_test ..........   Passed    0.24 sec
+ 8/10 Test  #8: byte_stream_stress_test ..........   Passed    0.13 sec
       Start 37: compile with optimization
- 9/10 Test #37: compile with optimization ........   Passed    0.04 sec
+ 9/10 Test #37: compile with optimization ........   Passed    0.56 sec
       Start 38: byte_stream_speed_test
-             ByteStream throughput: 0.61 Gbit/s
-10/10 Test #38: byte_stream_speed_test ...........   Passed    0.19 sec
+             ByteStream throughput: 31.90 Gbit/s
+10/10 Test #38: byte_stream_speed_test ...........   Passed    0.07 sec
 
 100% tests passed, 0 tests failed out of 10
 
-Total Test time (real) =   1.86 sec
+Total Test time (real) =   3.69 sec
 ```
 
 根据文档描述
