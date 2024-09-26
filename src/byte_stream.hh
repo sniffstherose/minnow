@@ -3,7 +3,8 @@
 #include <cstdint>
 #include <string>
 #include <string_view>
-#include <vector>
+#include <queue>
+#include <list>
 
 class Reader;
 class Writer;
@@ -24,13 +25,14 @@ public:
 
 protected:
   // Please add any additional state to the ByteStream here, and not to the Writer and Reader interfaces.
-  uint64_t capacity_;
+  uint64_t capacity_ {};
+  uint64_t nbytes_pushed_ {};
+  uint64_t nbytes_popped_ {};
+  uint64_t nbytes_buffered_ {};
+  bool is_closed_ {};
   bool error_ {};
-  
-  std::vector<char> buf_;
-  uint64_t nwrite_;
-  uint64_t nread_;
-  bool is_closed_;
+  std::queue<std::string> buf_ {};
+  std::string_view view_wnd_ {};
 };
 
 class Writer : public ByteStream

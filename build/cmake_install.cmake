@@ -1,4 +1,4 @@
-# Install script for directory: /home/cat/exing/CS144/minnow
+# Install script for directory: /home/sniffstherose/cs144/minnow
 
 # Set the install prefix
 if(NOT DEFINED CMAKE_INSTALL_PREFIX)
@@ -44,22 +44,22 @@ endif()
 
 if(NOT CMAKE_INSTALL_LOCAL_ONLY)
   # Include the install script for the subdirectory.
-  include("/home/cat/exing/CS144/minnow/build/util/cmake_install.cmake")
+  include("/home/sniffstherose/cs144/minnow/build/util/cmake_install.cmake")
 endif()
 
 if(NOT CMAKE_INSTALL_LOCAL_ONLY)
   # Include the install script for the subdirectory.
-  include("/home/cat/exing/CS144/minnow/build/src/cmake_install.cmake")
+  include("/home/sniffstherose/cs144/minnow/build/src/cmake_install.cmake")
 endif()
 
 if(NOT CMAKE_INSTALL_LOCAL_ONLY)
   # Include the install script for the subdirectory.
-  include("/home/cat/exing/CS144/minnow/build/tests/cmake_install.cmake")
+  include("/home/sniffstherose/cs144/minnow/build/tests/cmake_install.cmake")
 endif()
 
 if(NOT CMAKE_INSTALL_LOCAL_ONLY)
   # Include the install script for the subdirectory.
-  include("/home/cat/exing/CS144/minnow/build/apps/cmake_install.cmake")
+  include("/home/sniffstherose/cs144/minnow/build/apps/cmake_install.cmake")
 endif()
 
 if(CMAKE_INSTALL_COMPONENT)
@@ -70,5 +70,5 @@ endif()
 
 string(REPLACE ";" "\n" CMAKE_INSTALL_MANIFEST_CONTENT
        "${CMAKE_INSTALL_MANIFEST_FILES}")
-file(WRITE "/home/cat/exing/CS144/minnow/build/${CMAKE_INSTALL_MANIFEST}"
+file(WRITE "/home/sniffstherose/cs144/minnow/build/${CMAKE_INSTALL_MANIFEST}"
      "${CMAKE_INSTALL_MANIFEST_CONTENT}")

@@ -1,4 +1,4 @@
-# Install script for directory: /home/cat/exing/CS144/minnow/tests
+# Install script for directory: /home/sniffstherose/cs144/minnow/tests
 
 # Set the install prefix
 if(NOT DEFINED CMAKE_INSTALL_PREFIX)

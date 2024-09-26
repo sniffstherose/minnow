@@ -2,82 +2,83 @@
 
 using namespace std;
 
-ByteStream::ByteStream( uint64_t capacity ) : capacity_( capacity ), buf_(vector<char>(capacity_)), nwrite_(0),
-nread_(0), is_closed_(false){}
+ByteStream::ByteStream( uint64_t capacity ) : capacity_( capacity ){}
 
 bool Writer::is_closed() const
 {
-  // Your code here.
-  // return {};
   return is_closed_;
 }
 
 void Writer::push( string data )
 {
-  // Your code here.
-  // (void)data;
-  // return;
-  for (const char &c : data) {
-    if (nwrite_ >= nread_ + capacity_) {
-      return;
-    }
-    buf_[nwrite_ % capacity_] = c;
-    ++nwrite_;
+  if ( is_closed() ) {
+    return;
+  }
+  if ( data.size() > available_capacity() ) {
+    data.resize( available_capacity() );
+  }
+
+  if ( !data.empty() ) {
+    nbytes_pushed_ += data.size();
+    nbytes_buffered_ += data.size();
+    buf_.emplace( move(data) );
+  }
+  if ( view_wnd_.empty() && !buf_.empty() ) {
+    view_wnd_ = buf_.front();
   }
 }
 
 void Writer::close()
 {
-  // Your code here.
-  is_closed_ = true;
+  if ( !is_closed_ ) {
+    is_closed_ = true;
+    buf_.emplace( string(1, EOF) );
+  }
 }
 
 uint64_t Writer::available_capacity() const
 {
-  // Your code here.
-  return capacity_ - (nwrite_ - nread_);
+  return capacity_ - nbytes_buffered_;
 }
 
 uint64_t Writer::bytes_pushed() const
 {
-  // Your code here.
-  return nwrite_;
+  return nbytes_pushed_;
 }
 
 bool Reader::is_finished() const
 {
-  // Your code here.
-  return is_closed_ && (nread_ == nwrite_);
+
+  return is_closed_ && bytes_buffered() == 0;
 }
 
 uint64_t Reader::bytes_popped() const
 {
-  // Your code here.
-  return nread_;
+  return nbytes_popped_;
 }
 
 string_view Reader::peek() const
 {
-  // Your code here.
-  if (nread_ == nwrite_) return{};
-  string_view sv(&buf_[nread_ % capacity_], 1);
-  return sv;
+  return view_wnd_;
 }
 
 void Reader::pop( uint64_t len )
 {
-  // Your code here.
-  for (uint64_t i = 0; i < len; ++i) {
-    if (nread_ < nwrite_) {
-      ++nread_;
-    } else {
-      return;
-    }
+  uint64_t temp = len;
+  while ( temp >= view_wnd_.size() && temp != 0 ) {
+    temp -= view_wnd_.size();
+    buf_.pop();
+    view_wnd_ = buf_.empty() ? ""sv : buf_.front();
   }
+  if ( !view_wnd_.empty() ) {
+    view_wnd_.remove_prefix( temp );
+  }
+
+  nbytes_buffered_ -= len;
+  nbytes_popped_ += len;
 }
 
 uint64_t Reader::bytes_buffered() const
 {
-  // Your code here.
-  return nwrite_ - nread_;
+  return nbytes_buffered_;
 }

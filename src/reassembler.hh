@@ -2,12 +2,15 @@
 
 #include "byte_stream.hh"
 
+#include <list>
+#include <string>
+#include <tuple>
+
 class Reassembler
 {
 public:
   // Construct Reassembler to write into given ByteStream.
-  explicit Reassembler( ByteStream&& output ) : output_( std::move( output ) ), 
-  buf_(std::vector<char>(output_.writer().available_capacity(), 0)), buffered_(0){}
+  explicit Reassembler( ByteStream&& output ) : output_( std::move( output ) ) {}
 
   /*
    * Insert a new substring to be reassembled into a ByteStream.
@@ -42,9 +45,12 @@ public:
   const Writer& writer() const { return output_.writer(); }
 
 private:
+  void push_bytes( uint64_t first_index, std::string data, bool is_last_substring );
+  void cache_bytes( uint64_t first_index, std::string data, bool is_last_substring );
+  void flush_buffer();
+
   ByteStream output_; // the Reassembler writes to this ByteStream
-  // size_t available_capacity; -> capacity - nwrite_;
-  std::vector<char> buf_;
-  uint64_t buffered_;
-  
+  uint64_t nbytes_pending_ {};  // 在重组器缓存中的字节数
+  uint64_t expecting_index_ {}; // 重组器期待的序列
+  std::list<std::tuple<uint64_t, std::string, bool>> unordered_bytes_ {};
 };

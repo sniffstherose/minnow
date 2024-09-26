@@ -4,17 +4,17 @@
 
 
 # Configuration directories and files
-SourceDirectory: /home/cat/exing/CS144/minnow
-BuildDirectory: /home/cat/exing/CS144/minnow/build
+SourceDirectory: /home/sniffstherose/cs144/minnow
+BuildDirectory: /home/sniffstherose/cs144/minnow/build
 
 # Where to place the cost data store
 CostDataFile: 
 
 # Site is something like machine.domain, i.e. pragmatic.crd
-Site: Cat
+Site: a728a6752bcf
 
 # Build name is osname-revision-compiler, i.e. Linux-2.4.2-2smp-c++
-BuildName: Linux-g++
+BuildName: Linux-c++
 
 # Subprojects
 LabelsForSubprojects: 
@@ -27,7 +27,7 @@ SubmitInactivityTimeout:
 NightlyStartTime: 00:00:00 EDT
 
 # Commands for the build/test/submit cycle
-ConfigureCommand: "/usr/bin/cmake" "/home/cat/exing/CS144/minnow"
+ConfigureCommand: "/usr/bin/cmake" "/home/sniffstherose/cs144/minnow"
 MakeCommand: /usr/bin/cmake --build . --config "${CTEST_CONFIGURATION_TYPE}"
 DefaultCTestConfigurationType: Release
 
@@ -63,8 +63,8 @@ UpdateOptions:
 UpdateType: git
 
 # Compiler info
-Compiler: /usr/bin/g++
-CompilerVersion: 11.4.0
+Compiler: /usr/bin/c++
+CompilerVersion: 13.2.0
 
 # Dynamic analysis (MemCheck)
 PurifyCommand: 
