@@ -1,5 +1,6 @@
 #include "socket.hh"
 
+#include <format>
 #include <cstdlib>
 #include <iostream>
 #include <span>
@@ -11,27 +12,24 @@ void get_URL( const string& host, const string& path )
 {
   //cerr << "Function called: get_URL(" << host << ", " << path << ")\n";
   //cerr << "Warning: get_URL() has not been implemented yet.\n";
-  auto sc = TCPSocket();
-  auto addr = Address(host, "http");
-  sc.connect(addr);
 
-  sc.write("GET ");
-  sc.write(path);
-  sc.write(" HTTP/1.1\r\n");
-  sc.write("Host: ");
-  sc.write(host);
-  sc.write("\r\nConnection: close\r\n");
-  sc.write("\r\n");
+  TCPSocket sc {};
+  sc.connect( Address( host, "http" ) );
 
-  sc.shutdown(SHUT_WR);
-  while (!sc.eof()) {
-    string buf;
-    sc.read(buf);
-    cout << buf;
+  sc.write( format( "GET {} HTTP/1.1\r\n"
+		    "Host: {}\r\n" 
+		    "Connection: close\r\n"
+		    "\r\n", 
+        path, host ) );
+  
+  sc.shutdown( SHUT_WR );
+  string buf;
+  while ( !sc.eof() ) {
+  sc.read( buf );
+	cout << buf;
+	buf.clear();
   }
-
-  sc. close();
-
+  sc.close();
 }
 
 int main( int argc, char* argv[] )

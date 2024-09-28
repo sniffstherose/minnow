@@ -153,10 +153,24 @@ util/CMakeFiles/util_debug.dir/socket.cc.s: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Compiling CXX source to assembly CMakeFiles/util_debug.dir/socket.cc.s"
 	cd /home/sniffstherose/cs144/minnow/build/util && /usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /home/sniffstherose/cs144/minnow/util/socket.cc -o CMakeFiles/util_debug.dir/socket.cc.s
 
+util/CMakeFiles/util_debug.dir/tcp_segment.cc.o: util/CMakeFiles/util_debug.dir/flags.make
+util/CMakeFiles/util_debug.dir/tcp_segment.cc.o: /home/sniffstherose/cs144/minnow/util/tcp_segment.cc
+util/CMakeFiles/util_debug.dir/tcp_segment.cc.o: util/CMakeFiles/util_debug.dir/compiler_depend.ts
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/sniffstherose/cs144/minnow/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_7) "Building CXX object util/CMakeFiles/util_debug.dir/tcp_segment.cc.o"
+	cd /home/sniffstherose/cs144/minnow/build/util && /usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT util/CMakeFiles/util_debug.dir/tcp_segment.cc.o -MF CMakeFiles/util_debug.dir/tcp_segment.cc.o.d -o CMakeFiles/util_debug.dir/tcp_segment.cc.o -c /home/sniffstherose/cs144/minnow/util/tcp_segment.cc
+
+util/CMakeFiles/util_debug.dir/tcp_segment.cc.i: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Preprocessing CXX source to CMakeFiles/util_debug.dir/tcp_segment.cc.i"
+	cd /home/sniffstherose/cs144/minnow/build/util && /usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E /home/sniffstherose/cs144/minnow/util/tcp_segment.cc > CMakeFiles/util_debug.dir/tcp_segment.cc.i
+
+util/CMakeFiles/util_debug.dir/tcp_segment.cc.s: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Compiling CXX source to assembly CMakeFiles/util_debug.dir/tcp_segment.cc.s"
+	cd /home/sniffstherose/cs144/minnow/build/util && /usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /home/sniffstherose/cs144/minnow/util/tcp_segment.cc -o CMakeFiles/util_debug.dir/tcp_segment.cc.s
+
 util/CMakeFiles/util_debug.dir/tun.cc.o: util/CMakeFiles/util_debug.dir/flags.make
 util/CMakeFiles/util_debug.dir/tun.cc.o: /home/sniffstherose/cs144/minnow/util/tun.cc
 util/CMakeFiles/util_debug.dir/tun.cc.o: util/CMakeFiles/util_debug.dir/compiler_depend.ts
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/sniffstherose/cs144/minnow/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_7) "Building CXX object util/CMakeFiles/util_debug.dir/tun.cc.o"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/sniffstherose/cs144/minnow/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_8) "Building CXX object util/CMakeFiles/util_debug.dir/tun.cc.o"
 	cd /home/sniffstherose/cs144/minnow/build/util && /usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT util/CMakeFiles/util_debug.dir/tun.cc.o -MF CMakeFiles/util_debug.dir/tun.cc.o.d -o CMakeFiles/util_debug.dir/tun.cc.o -c /home/sniffstherose/cs144/minnow/util/tun.cc
 
 util/CMakeFiles/util_debug.dir/tun.cc.i: cmake_force
@@ -175,6 +189,7 @@ util_debug_OBJECTS = \
 "CMakeFiles/util_debug.dir/ipv4_header.cc.o" \
 "CMakeFiles/util_debug.dir/random.cc.o" \
 "CMakeFiles/util_debug.dir/socket.cc.o" \
+"CMakeFiles/util_debug.dir/tcp_segment.cc.o" \
 "CMakeFiles/util_debug.dir/tun.cc.o"
 
 # External object files for target util_debug
@@ -186,10 +201,11 @@ util/libutil_debug.a: util/CMakeFiles/util_debug.dir/file_descriptor.cc.o
 util/libutil_debug.a: util/CMakeFiles/util_debug.dir/ipv4_header.cc.o
 util/libutil_debug.a: util/CMakeFiles/util_debug.dir/random.cc.o
 util/libutil_debug.a: util/CMakeFiles/util_debug.dir/socket.cc.o
+util/libutil_debug.a: util/CMakeFiles/util_debug.dir/tcp_segment.cc.o
 util/libutil_debug.a: util/CMakeFiles/util_debug.dir/tun.cc.o
 util/libutil_debug.a: util/CMakeFiles/util_debug.dir/build.make
 util/libutil_debug.a: util/CMakeFiles/util_debug.dir/link.txt
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --bold --progress-dir=/home/sniffstherose/cs144/minnow/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_8) "Linking CXX static library libutil_debug.a"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --bold --progress-dir=/home/sniffstherose/cs144/minnow/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_9) "Linking CXX static library libutil_debug.a"
 	cd /home/sniffstherose/cs144/minnow/build/util && $(CMAKE_COMMAND) -P CMakeFiles/util_debug.dir/cmake_clean_target.cmake
 	cd /home/sniffstherose/cs144/minnow/build/util && $(CMAKE_COMMAND) -E cmake_link_script CMakeFiles/util_debug.dir/link.txt --verbose=$(VERBOSE)
 

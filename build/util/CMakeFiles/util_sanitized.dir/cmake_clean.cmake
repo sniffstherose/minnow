@@ -11,6 +11,8 @@ file(REMOVE_RECURSE
   "CMakeFiles/util_sanitized.dir/random.cc.o.d"
   "CMakeFiles/util_sanitized.dir/socket.cc.o"
   "CMakeFiles/util_sanitized.dir/socket.cc.o.d"
+  "CMakeFiles/util_sanitized.dir/tcp_segment.cc.o"
+  "CMakeFiles/util_sanitized.dir/tcp_segment.cc.o.d"
   "CMakeFiles/util_sanitized.dir/tun.cc.o"
   "CMakeFiles/util_sanitized.dir/tun.cc.o.d"
   "libutil_sanitized.a"

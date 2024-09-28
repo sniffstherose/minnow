@@ -11,6 +11,8 @@ file(REMOVE_RECURSE
   "CMakeFiles/util_optimized.dir/random.cc.o.d"
   "CMakeFiles/util_optimized.dir/socket.cc.o"
   "CMakeFiles/util_optimized.dir/socket.cc.o.d"
+  "CMakeFiles/util_optimized.dir/tcp_segment.cc.o"
+  "CMakeFiles/util_optimized.dir/tcp_segment.cc.o.d"
   "CMakeFiles/util_optimized.dir/tun.cc.o"
   "CMakeFiles/util_optimized.dir/tun.cc.o.d"
   "libutil_optimized.a"

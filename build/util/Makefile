@@ -348,6 +348,36 @@ socket.cc.s:
 	cd /home/sniffstherose/cs144/minnow/build && $(MAKE) $(MAKESILENT) -f util/CMakeFiles/util_optimized.dir/build.make util/CMakeFiles/util_optimized.dir/socket.cc.s
 .PHONY : socket.cc.s
 
+tcp_segment.o: tcp_segment.cc.o
+.PHONY : tcp_segment.o
+
+# target to build an object file
+tcp_segment.cc.o:
+	cd /home/sniffstherose/cs144/minnow/build && $(MAKE) $(MAKESILENT) -f util/CMakeFiles/util_debug.dir/build.make util/CMakeFiles/util_debug.dir/tcp_segment.cc.o
+	cd /home/sniffstherose/cs144/minnow/build && $(MAKE) $(MAKESILENT) -f util/CMakeFiles/util_sanitized.dir/build.make util/CMakeFiles/util_sanitized.dir/tcp_segment.cc.o
+	cd /home/sniffstherose/cs144/minnow/build && $(MAKE) $(MAKESILENT) -f util/CMakeFiles/util_optimized.dir/build.make util/CMakeFiles/util_optimized.dir/tcp_segment.cc.o
+.PHONY : tcp_segment.cc.o
+
+tcp_segment.i: tcp_segment.cc.i
+.PHONY : tcp_segment.i
+
+# target to preprocess a source file
+tcp_segment.cc.i:
+	cd /home/sniffstherose/cs144/minnow/build && $(MAKE) $(MAKESILENT) -f util/CMakeFiles/util_debug.dir/build.make util/CMakeFiles/util_debug.dir/tcp_segment.cc.i
+	cd /home/sniffstherose/cs144/minnow/build && $(MAKE) $(MAKESILENT) -f util/CMakeFiles/util_sanitized.dir/build.make util/CMakeFiles/util_sanitized.dir/tcp_segment.cc.i
+	cd /home/sniffstherose/cs144/minnow/build && $(MAKE) $(MAKESILENT) -f util/CMakeFiles/util_optimized.dir/build.make util/CMakeFiles/util_optimized.dir/tcp_segment.cc.i
+.PHONY : tcp_segment.cc.i
+
+tcp_segment.s: tcp_segment.cc.s
+.PHONY : tcp_segment.s
+
+# target to generate assembly for a file
+tcp_segment.cc.s:
+	cd /home/sniffstherose/cs144/minnow/build && $(MAKE) $(MAKESILENT) -f util/CMakeFiles/util_debug.dir/build.make util/CMakeFiles/util_debug.dir/tcp_segment.cc.s
+	cd /home/sniffstherose/cs144/minnow/build && $(MAKE) $(MAKESILENT) -f util/CMakeFiles/util_sanitized.dir/build.make util/CMakeFiles/util_sanitized.dir/tcp_segment.cc.s
+	cd /home/sniffstherose/cs144/minnow/build && $(MAKE) $(MAKESILENT) -f util/CMakeFiles/util_optimized.dir/build.make util/CMakeFiles/util_optimized.dir/tcp_segment.cc.s
+.PHONY : tcp_segment.cc.s
+
 tun.o: tun.cc.o
 .PHONY : tun.o
 
@@ -408,6 +438,9 @@ help:
 	@echo "... socket.o"
 	@echo "... socket.i"
 	@echo "... socket.s"
+	@echo "... tcp_segment.o"
+	@echo "... tcp_segment.i"
+	@echo "... tcp_segment.s"
 	@echo "... tun.o"
 	@echo "... tun.i"
 	@echo "... tun.s"

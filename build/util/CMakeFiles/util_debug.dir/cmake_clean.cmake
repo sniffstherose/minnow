@@ -11,6 +11,8 @@ file(REMOVE_RECURSE
   "CMakeFiles/util_debug.dir/random.cc.o.d"
   "CMakeFiles/util_debug.dir/socket.cc.o"
   "CMakeFiles/util_debug.dir/socket.cc.o.d"
+  "CMakeFiles/util_debug.dir/tcp_segment.cc.o"
+  "CMakeFiles/util_debug.dir/tcp_segment.cc.o.d"
   "CMakeFiles/util_debug.dir/tun.cc.o"
   "CMakeFiles/util_debug.dir/tun.cc.o.d"
   "libutil_debug.a"

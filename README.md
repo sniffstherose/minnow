@@ -742,3 +742,316 @@ Total Test time (real) =   3.85 sec
 > ::在做这个实验的时候出现了一个非常操蛋的失误，我把上面.cc文件中105行`data.resize( data.size() - ( next_index - lpoint ) );`的`data.size()`写成了`str.size()`（但脑子里想的就是data.size()）导致测试不通过，GDB各种排查，最终排查到了这个if语句内，但是看了半天也没看出逻辑哪里不对最后断点打到106行才注意到这个`str.size()`😅。
 
 最后git提交一下即可进入下一阶段😎。
+
+## lab 2
+
+### Overview
+
+概述部分告诉我们已经实现了控制字节流抽象和重组器，接下来需要实现TCPReceiver，并且告诉我们TCPReceiver会通过`send()`方法给发送方返回两个消息：（1）ACK，即确认号；（2）window size，即接收方缓冲区可用空间大小。最后告诉我们大部分算法工作已经在前两个实验完成了，现在最难的是TCP如何表示每个字节在流中的位置（序列号）。
+
+### Getting started
+
+老样子了，先merge当前lab的分支，然后set up一下build system。
+
+### Checkpoint 2: The TCP Receiver
+
+废话了一下TCP的特性，并讲了讲为什么要这么做，基本就是回答TCP为什么可靠。
+
+#### Translating between 64-bit indexes and 32-bit seqnos
+
+这里告诉我们虽然重组器内用的都是64bit（`uint64_t`）的索引表示序列，但是在实际TCP中由于空间的宝贵，都是使用32bit的序列号来表示，所以我们需要额外做一些工作：
+
+1. 我们需要设计一下序列的表示。虽然TCP能发送的数据是无限的，但是32位的序列号最大也就4GB的数据，如果大于4GB的数据怎么办呢？那就需要当序列号累计到了2^32 - 1时从0开始重新往上增长。
+2. TCP序列号应以一个随机值作为开始。为了健壮性以及避免和旧连接混淆，TCP序列号随机一个32位的数当做ISN（初始序列号），表示为SYN（流的开始），此后的序列号将递增，比如真正数据第一个字节为：ISN + 1 mod 2^32。
+3. 一个字节流的逻辑开头和结尾应当标识出来，所以这俩也会占用序列号，就是熟知的SYN和FIN标志位，这两个不是流本身的一部分，只是需要辅助作用我们添加的开始和结束部分。
+
+举了个例子，方便我们区分序列号、绝对序列号（可以理解为从0开始的逻辑上的序列）、stream index，假设有一个字符串"cat"，如果其ISN为2^32 - 2则其各个部分如下图：
+
+![image-20240927094656994](./imgs/image-20240927094656994.png)
+
+三者的对比：
+
+![image-20240927094748592](./imgs/image-20240927094748592.png)
+
+可以看出来在绝对序列号和stream index之间的转换很简单，只需加减1，但是想把序列号转换为stream index非常棘手，文档告诉我们为了系统得避免混淆这三者导致出现bug，这里使用自定义类型`Wrap32`来表示序列号，并且实现一个与绝对序列号转换的方法。
+
+接下来就到`wrapping_integers.hh`和`wrapping_integers.cc`两个文件实现代码。
+
+文档告诉我们：
+
+![image-20240927153432583](./imgs/image-20240927153432583.png)
+
+需求分析：
+
+1. 序列号到达2^32 - 1时下一个序列号应当从0开始，这一点会因为64bit转换为32bit自动进行；
+2. 32位的序列号转换成64为的绝对序列号。
+
+程序实现（实现的过程切不可多想，只需要解决序列转换问题即可，别的先不管）：
+
+1. `wrap()`函数比较简单，根据上面的关系我们可以知道直接将给定的zero_point加上n即可得到；
+
+2. `unwrap()`函数比较复杂：
+
+   参数给定一个zero_point和checkpoint，那么什么是checkpoint呢？checkpoint其实就是目前已经push到了ByteStream中的字节的绝对序列，也就是nbytes_pushed_ + 1。我们要根据这个checkpoint求得距离checkpoint最近的绝对序列，具体的原因上述文档中有描述。我们要求的绝对序列实际上应当是当前消息的绝对序列，那为啥又要求这个呢？因为我们要调用lab1的重组器来重组并push，它需要的第一个参数就是first_index，也就是当前数据分组的stream index，在上面的表中可以看到它可以和绝对序列进行加减1的转换，所以需要求出当前消息的绝对序列。我们可以利用checkpoint的模值求得其和当前消息模值的距离，然后将这个距离加到原始checkpoint上，不过这里有一些细节，详见这篇文章：[CS144（2024 Winter）Lab Checkpoint 2: the TCP receiver_cs144 lab2-CSDN博客](https://blog.csdn.net/Kovnt/article/details/135793894)
+
+```C++
+// wrappint_integers.hh
+#pragma once
+
+#include <cstdint>
+
+/*
+ * The Wrap32 type represents a 32-bit unsigned integer that:
+ *    - starts at an arbitrary "zero point" (initial value), and
+ *    - wraps back to zero when it reaches 2^32 - 1.
+ */
+
+class Wrap32
+{
+public:
+  explicit Wrap32( uint32_t raw_value ) : raw_value_( raw_value ) {}
+
+  /* Construct a Wrap32 given an absolute sequence number n and the zero point. */
+  static Wrap32 wrap( uint64_t n, Wrap32 zero_point );
+
+  /*
+   * The unwrap method returns an absolute sequence number that wraps to this Wrap32, given the zero point
+   * and a "checkpoint": another absolute sequence number near the desired answer.
+   *
+   * There are many possible absolute sequence numbers that all wrap to the same Wrap32.
+   * The unwrap method should return the one that is closest to the checkpoint.
+   */
+  uint64_t unwrap( Wrap32 zero_point, uint64_t checkpoint ) const;
+
+  Wrap32 operator+( uint32_t n ) const { return Wrap32 { raw_value_ + n }; }
+  bool operator==( const Wrap32& other ) const { return raw_value_ == other.raw_value_; }
+
+protected:
+  uint32_t raw_value_ {};
+};
+```
+
+
+
+```C++
+// wrappint_integers.cc
+#include "wrapping_integers.hh"
+
+using namespace std;
+
+Wrap32 Wrap32::wrap( uint64_t n, Wrap32 zero_point )
+{
+  return zero_point + n;
+}
+
+uint64_t Wrap32::unwrap( Wrap32 zero_point, uint64_t checkpoint ) const
+{
+  // 32bit的上界
+  uint64_t upper = static_cast<uint64_t>(UINT32_MAX) + 1;
+  // checkpoint + zero_point
+  const uint32_t checkpoint_mod = Wrap32::wrap( checkpoint, zero_point ).raw_value_;
+  // 如果raw_value < checkpoint_mod，因为这是无符号减法，所以相当于checkpoint_mod - raw_value
+  uint32_t distance = raw_value_ - checkpoint_mod;
+  // 如果距离大于一般或者加起来超过界限了，说明要求的绝对序列小于checkpoint的，减去一个2^32
+  if ( distance <= ( upper >> 1 ) || checkpoint + distance < upper )
+    return checkpoint + distance;
+  return checkpoint + distance - upper;
+}
+```
+
+#### Implementing the TCP receiver
+
+这部分让我们实现TCPReceiver，这个类做两个工作：
+
+1. 接收对等的发送者发送的消息，并使用Reassembler重组ByteStream；
+2. 包装返回给发送者的信息，包含确认号、窗口大小。
+
+紧接着介绍了一下"sender message"，这个message是从sender到receiver的消息：
+
+![image-20240928145158805](./imgs/image-20240928145158805.png)
+
+还有receiver的消息结构体，这个消息是receiver生成并返回给sender的：
+
+![image-20240928145247785](./imgs/image-20240928145247785.png)
+
+注意文档的用词“peer's”，接收方和发送方是对等的。
+
+这部分没有太大难点，主要就是coding问题了：
+
+```C++
+// tcp_receiver.hh
+#pragma once
+
+#include "reassembler.hh"
+#include "tcp_receiver_message.hh"
+#include "tcp_sender_message.hh"
+
+class TCPReceiver
+{
+public:
+  // Construct with given Reassembler
+  explicit TCPReceiver( Reassembler&& reassembler ) : reassembler_( std::move( reassembler ) ) {}
+
+  /*
+   * The TCPReceiver receives TCPSenderMessages, inserting their payload into the Reassembler
+   * at the correct stream index.
+   */
+  void receive( TCPSenderMessage message );
+
+  // The TCPReceiver sends TCPReceiverMessages to the peer's TCPSender.
+  TCPReceiverMessage send() const;
+
+  // Access the output (only Reader is accessible non-const)
+  const Reassembler& reassembler() const { return reassembler_; }
+  Reader& reader() { return reassembler_.reader(); }
+  const Reader& reader() const { return reassembler_.reader(); }
+  const Writer& writer() const { return reassembler_.writer(); }
+
+private:
+  Reassembler reassembler_;
+  std::optional<Wrap32> ISN_ {};  // 因为TCP SYN 序列是随机的，所以需要一个变量来维护
+};
+
+```
+
+```C++
+// tcp_receiver.cc
+#include "tcp_receiver.hh"
+
+using namespace std;
+
+/*
+  接收消息并调用重组器：
+  这个函数要实现的功能主要有：
+    - 计算stream index
+    - 排除不正确的message
+  实现思路：
+    1. stream index可以根据absolute seqno来计算，所以我们需要先计算absolute seqno，
+    这里可以用到wrapping_integers里实现好的Wrap32类来实现相关转换。首先找到一个check
+    -point，然后只需要调用unwrap函数求得对应的absolute seqno即可，注意最后插入的时候
+    我们要考虑SYN，所以应该插入absolute seqno - 1（0除外）；
+    2. 要排除不正确的message，主要有两种情况：
+      - 刚接收一个SYN报文，下一个又是序号为ISN的；
+      - 还未接收SYN报文，但是来的消息不是SYN报文。
+
+*/
+void TCPReceiver::receive( TCPSenderMessage message )
+{
+  const uint64_t checkpoint = reassembler_.writer().bytes_pushed() + ISN_.has_value();
+  if ( message.RST ) {
+    reassembler_.reader().set_error();
+  } else if ( checkpoint > 0 && checkpoint <= UINT32_MAX && message.seqno == ISN_ ) 
+    return;
+  if ( !ISN_.has_value() ) {
+    if ( !message.SYN )
+      return;
+    ISN_ = message.seqno;
+  }
+  const uint64_t abso_seqno = message.seqno.unwrap( *ISN_, checkpoint );
+  reassembler_.insert( abso_seqno == 0 ? abso_seqno : abso_seqno - 1, move( message.payload ), message.FIN );
+}
+
+
+/*
+  返回给发送方相关信息
+  这个函数主要实现一个内容：返回确认号、接收窗口大小、断开连接标志位。
+  这个函数实现比较简单，具体看代码即可。
+*/
+TCPReceiverMessage TCPReceiver::send() const
+{
+  const uint64_t checkpoint = reassembler_.writer().bytes_pushed() + ISN_.has_value();
+  const uint64_t capacity = reassembler_.writer().available_capacity();
+  const uint16_t wnd_size = capacity > UINT16_MAX ? UINT16_MAX : capacity;
+  if ( !ISN_.has_value() )
+    return { {}, wnd_size, reassembler_.writer().has_error() };
+  // 如果关闭了，则发送FIN包
+  return  { Wrap32::wrap( checkpoint + reassembler_.writer().is_closed(),  *ISN_),
+            wnd_size,
+            reassembler_.writer().has_error() };
+}
+
+```
+
+两部分都完成后在minnow目录下执行`cmake --build build --target check2`，下面附上通过结果：
+
+```bash
+Test project /home/sniffstherose/cs144/minnow/build
+      Start  1: compile with bug-checkers
+ 1/29 Test  #1: compile with bug-checkers ........   Passed   16.22 sec
+      Start  3: byte_stream_basics
+ 2/29 Test  #3: byte_stream_basics ...............   Passed    0.06 sec
+      Start  4: byte_stream_capacity
+ 3/29 Test  #4: byte_stream_capacity .............   Passed    0.05 sec
+      Start  5: byte_stream_one_write
+ 4/29 Test  #5: byte_stream_one_write ............   Passed    0.05 sec
+      Start  6: byte_stream_two_writes
+ 5/29 Test  #6: byte_stream_two_writes ...........   Passed    0.06 sec
+      Start  7: byte_stream_many_writes
+ 6/29 Test  #7: byte_stream_many_writes ..........   Passed    0.08 sec
+      Start  8: byte_stream_stress_test
+ 7/29 Test  #8: byte_stream_stress_test ..........   Passed    0.15 sec
+      Start  9: reassembler_single
+ 8/29 Test  #9: reassembler_single ...............   Passed    0.06 sec
+      Start 10: reassembler_cap
+ 9/29 Test #10: reassembler_cap ..................   Passed    0.06 sec
+      Start 11: reassembler_seq
+10/29 Test #11: reassembler_seq ..................   Passed    0.06 sec
+      Start 12: reassembler_dup
+11/29 Test #12: reassembler_dup ..................   Passed    0.08 sec
+      Start 13: reassembler_holes
+12/29 Test #13: reassembler_holes ................   Passed    0.06 sec
+      Start 14: reassembler_overlapping
+13/29 Test #14: reassembler_overlapping ..........   Passed    0.06 sec
+      Start 15: reassembler_win
+14/29 Test #15: reassembler_win ..................   Passed    0.28 sec
+      Start 16: wrapping_integers_cmp
+15/29 Test #16: wrapping_integers_cmp ............   Passed    0.02 sec
+      Start 17: wrapping_integers_wrap
+16/29 Test #17: wrapping_integers_wrap ...........   Passed    0.02 sec
+      Start 18: wrapping_integers_unwrap
+17/29 Test #18: wrapping_integers_unwrap .........   Passed    0.01 sec
+      Start 19: wrapping_integers_roundtrip
+18/29 Test #19: wrapping_integers_roundtrip ......   Passed    1.40 sec
+      Start 20: wrapping_integers_extra
+19/29 Test #20: wrapping_integers_extra ..........   Passed    0.31 sec
+      Start 21: recv_connect
+20/29 Test #21: recv_connect .....................   Passed    0.06 sec
+      Start 22: recv_transmit
+21/29 Test #22: recv_transmit ....................   Passed    0.31 sec
+      Start 23: recv_window
+22/29 Test #23: recv_window ......................   Passed    0.07 sec
+      Start 24: recv_reorder
+23/29 Test #24: recv_reorder .....................   Passed    0.08 sec
+      Start 25: recv_reorder_more
+24/29 Test #25: recv_reorder_more ................   Passed    0.78 sec
+      Start 26: recv_close
+25/29 Test #26: recv_close .......................   Passed    0.09 sec
+      Start 27: recv_special
+26/29 Test #27: recv_special .....................   Passed    0.09 sec
+      Start 37: compile with optimization
+27/29 Test #37: compile with optimization ........   Passed    1.76 sec
+      Start 38: byte_stream_speed_test
+             ByteStream throughput: 28.69 Gbit/s
+28/29 Test #38: byte_stream_speed_test ...........   Passed    0.07 sec
+      Start 39: reassembler_speed_test
+             Reassembler throughput: 12.50 Gbit/s
+29/29 Test #39: reassembler_speed_test ...........   Passed    0.13 sec
+
+100% tests passed, 0 tests failed out of 29
+
+Total Test time (real) =  22.72 sec
+```
+
+> ::这部分折磨死我了，特别是wrap和unwrap，总感觉脑袋转不过来，模运算一生之敌啊。
+
+最后记得git提交一下即可进入下一阶段😢
+
+## lab3
+
+### Overview
+
+老样子，告诉我们前面的实验做了啥。还有这次实验要实现TCPSender，作为TCP连接的另一端。还告诉我们lab4将把所有的实现结合起来。
+
+### Getting started
+
+老样子，merge一下初始代码，初始化build system。

@@ -137,6 +137,7 @@ tests/CMakeFiles/byte_stream_two_writes.dir/byte_stream_two_writes.cc.o: \
  /home/sniffstherose/cs144/minnow/tests/byte_stream_test_harness.hh \
  /home/sniffstherose/cs144/minnow/tests/common.hh \
  /home/sniffstherose/cs144/minnow/tests/conversions.hh \
+ /home/sniffstherose/cs144/minnow/src/wrapping_integers.hh \
  /usr/include/c++/13/optional /usr/include/c++/13/exception \
  /usr/include/c++/13/bits/exception_ptr.h \
  /usr/include/c++/13/bits/cxxabi_init_exception.h \

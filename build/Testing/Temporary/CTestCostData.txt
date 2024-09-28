@@ -2,14 +2,14 @@ compile 0 0
 t_webget 35 0.0440414
 compile 0 0
 compile 0 0
-byte_stream_basics 25 0.00238564
-byte_stream_capacity 25 0.00224725
-byte_stream_one_write 25 0.00232837
-byte_stream_two_writes 25 0.00226435
-byte_stream_many_writes 25 0.00306852
-byte_stream_stress_test 25 0.00520637
+byte_stream_basics 28 0.00205407
+byte_stream_capacity 28 0.0018782
+byte_stream_one_write 28 0.00195497
+byte_stream_two_writes 28 0.00202677
+byte_stream_many_writes 28 0.00290578
+byte_stream_stress_test 28 0.00538463
 compile 0 0
-byte_stream_speed_test 20 0.00359965
+byte_stream_speed_test 22 0.00314754
 compile 0 0
 compile 0 0
 compile 0 0
@@ -78,15 +78,15 @@ compile 0 0
 compile 0 0
 compile 0 0
 compile 0 0
-reassembler_single 15 0.00364795
-reassembler_cap 15 0.00398256
-reassembler_seq 15 0.00411967
-reassembler_dup 15 0.0054047
-reassembler_holes 10 0.00560475
-reassembler_overlapping 10 0.00656577
-reassembler_win 10 0.0287882
+reassembler_single 18 0.00310413
+reassembler_cap 18 0.00335043
+reassembler_seq 18 0.00324987
+reassembler_dup 18 0.00438391
+reassembler_holes 13 0.00444592
+reassembler_overlapping 13 0.00493737
+reassembler_win 13 0.0218176
 compile 0 0
-reassembler_speed_test 10 0.0133222
+reassembler_speed_test 12 0.0104174
 compile 0 0
 compile 0 0
 compile 0 0
@@ -115,6 +115,32 @@ compile 0 0
 compile 0 0
 compile 0 0
 compile 0 0
-compile with bug-checkers 1 1.83675
-compile with optimization 1 0.568728
+compile 0 0
+compile 0 0
+compile 0 0
+wrapping_integers_cmp 3 0.0078027
+wrapping_integers_wrap 3 0.00509598
+wrapping_integers_unwrap 3 0.0046056
+wrapping_integers_roundtrip 3 0.467142
+wrapping_integers_extra 3 0.102001
+recv_connect 2 0.0315495
+recv_transmit 2 0.157445
+recv_window 2 0.0331564
+recv_reorder 2 0.0379553
+recv_reorder_more 2 0.389112
+recv_close 2 0.0459574
+recv_special 2 0.0431126
+compile 0 0
+compile 0 0
+compile 0 0
+compile 0 0
+compile 0 0
+compile 0 0
+compile 0 0
+compile 0 0
+compile 0 0
+compile 0 0
+compile 0 0
+compile with bug-checkers 1 16.2157
+compile with optimization 1 1.76185
 ---
