@@ -1,6 +1,6 @@
 # CS144
 
-## lab0
+## lab 0
 
 [lab0文档](https://tryanel.github.io/Documents/check0.pdf)
 
@@ -428,7 +428,7 @@ Total Test time (real) =   1.86 sec
 
 到此lab0所有任务完成，最后记得git管理一下项目代码
 
-## lab1
+## lab 1
 
 [lab1文档](https://tryanel.github.io/Documents/check1.pdf)
 
@@ -1046,7 +1046,7 @@ Total Test time (real) =  22.72 sec
 
 最后记得git提交一下即可进入下一阶段😢
 
-## lab3
+## lab 3
 
 ### Overview
 
@@ -1055,3 +1055,462 @@ Total Test time (real) =  22.72 sec
 ### Getting started
 
 老样子，merge一下初始代码，初始化build system。
+
+### Checkpoint 3: The TCP Sender
+
+文档告诉我们这周将实现TCPSender，负责从ByteStream中读取数据并将流转换为段用于发送出去，TCPSender将会负责这几点：
+
+![image-20240929162752960](./imgs/image-20240929162752960.png)
+
+这部分讲了TCPSender的核心逻辑，涉及超时重传和滑动窗口机制。文档告诉我们TCPSender的核心流程：
+
+1. 记录接收端告知的窗口大小（lab2实现的window size），可以从TCPReceiverMessage中获取；
+2. 在ByteStream中读取payload，在窗口大小允许的情况下追加控制位SYN和FIN，填充报文直到窗口已满或没有东西可发送；
+3. 追踪那些报文未收到确认号回复，这部分报文称之为“未完成的字节”；
+4. 未完成的字节在一定时间后仍未收到确认回复则重传。
+
+注意：sender发送报文时SYN一定为true的情况只有第一个报文需要请求连接时，后续的SYN不一定需要为true，需要根据情况决定（如果未收到SYN包的确认号则SYN为true）。
+
+超时重传部分，文档中告诉我们TCPSender会周期性的调用tick()方法告知距离上次调用过了多久（ms）。如果这个时间超过了RTO（重传时间间隔），则立即重新发送**最早没被确认**的报文，并且只发一次。
+
+#### How does the TCPSender know if a segment was lost?
+
+这部分详细讲了TCPSender的自动重传协议。首先我们要明确我们需要重传发送过的消息，所以一定要有缓存，而重传的机制就是先进先出，所以考虑使用queue实现。
+
+因为报文中seqno是wrap32类型，我们可以再维护一个uint64类型的absolute seqno用来表示确认号确认到哪了，当然也可以不用维护，只不过每次都得调用wrap32中的unwrap方法。当然，当前刚发送的我们也需要维护一个变量保存。
+
+1. 文档告诉我们TCPSender会周期性调用tick()函数，文档希望我们不要使用time()或是now()函数来获取现实时间，应该使用给定的参数来获取时间信息；
+
+2. TCPSender对象构造时会接受一个初始值，用作初始重传时间间隔；
+
+3. 关于自动重传的设计，文档建议我们设计一个计时器类，用来保存RTO，并且在累计时间大于RTO后将计时器状态转为“已过期”；
+
+4. 每次发送非0长报文时如果计时器没有启动则都需要启动它；
+
+5. 接收确认报文时，如果所有的未完成数据都已经被确认，则停止计时器；
+
+   > 如果太大了大的离谱，比如我还没发你先确认了。玩呢？这种就得丢弃，不予理睬。
+
+6. 如果调用tick()时计时器过期：
+
+   1. 重发最早未被确认的报文；
+   2. 窗口大小不为0：
+      1. 重传报文，更新重传计数；
+      2. 将RTO乘以2。
+   3. 重置计时器。
+
+7. 接收方确认：
+
+   1. 将RTO重置；
+   2. 如果sender此时还有工作，重启计时器继续工作
+   3. 重置重传计数器
+
+#### Implementing the TCP sender
+
+接下来就是愉快的撸代码环节了：
+
+1. push()方法：push方法负责不断从ByteStream中读取字节填充窗口，直到没有新的字节可读或者窗口填满或者超过了TCPConfig中规定的上限。
+
+   有一个特殊点：当对方告诉窗口大小为0时，发送方应该假设其窗口大小为1，发送一个大小为1byte的试探数据报，防止死锁。
+
+   ![image-20240930153122495](./imgs/image-20240930153122495.png)
+
+2. receive()方法：receive方法负责接收发送发的确认消息，更新缓冲区。更新条件为：ackno大于缓冲区首段报文的所有字节序号，如果只是大于部分我们不予理睬，文档也告诉我们没必要截断。
+
+   ![image-20240930153445744](./imgs/image-20240930153445744.png)
+
+3. tick()方法：直接看文档
+
+   ![image-20240930154028822](./imgs/image-20240930154028822.png)
+
+4. make empty message()方法：创建并返回一个零长报文，其特征如下：
+
+   1. SYN、FIN为false；
+   2. payload为空；
+   3. RST由ByteStream决定
+
+最后看看FAQS：
+
+![image-20240930154347689](./imgs/image-20240930154347689.png)
+
+代码实现：
+
+```C++
+// tcp_sender.hh
+#pragma once
+
+#include "byte_stream.hh"
+#include "tcp_receiver_message.hh"
+#include "tcp_sender_message.hh"
+
+#include <cstdint>
+#include <functional>
+#include <list>
+#include <memory>
+#include <optional>
+#include <queue>
+
+/*
+  计时器辅助类：
+  成员变量：
+    - RTO
+    - 过去了多久时间
+    - 是否启用计时器
+  成员函数：
+    - is_expired()（是否过期）
+    - is_active()（是否启用）
+    - active()（设置active）
+    - timeout()（将RTO乘2）
+    - reset()（重置计时器）
+    - tick()（返回距离上次调用过了多久）
+*/
+class RetransmissionTimer
+{
+public:
+  RetransmissionTimer( uint64_t RTO ) : RTO_( RTO ) {}
+  bool is_expired() const noexcept { return is_active_ && time_passed_ >= RTO_; }
+  bool is_active() const noexcept { return is_active_; }
+  RetransmissionTimer& active() noexcept;
+  RetransmissionTimer& timeout() noexcept;
+  RetransmissionTimer& reset() noexcept;
+  RetransmissionTimer& tick( uint64_t ms_since_last_tick ) noexcept;
+
+private:
+  uint64_t RTO_;
+  uint64_t time_passed_ {};
+  bool is_active_ {};
+};
+
+class TCPSender
+{
+public:
+  /* Construct TCP sender with given default Retransmission Timeout and possible ISN */
+  TCPSender( ByteStream&& input, Wrap32 isn, uint64_t initial_RTO_ms )
+    : input_( std::move( input ) ), isn_( isn ), initial_RTO_ms_( initial_RTO_ms ), timer_( initial_RTO_ms )
+  {}
+
+  /* Generate an empty TCPSenderMessage */
+  TCPSenderMessage make_empty_message() const;
+
+  /* Receive and process a TCPReceiverMessage from the peer's receiver */
+  void receive( const TCPReceiverMessage& msg );
+
+  /* Type of the `transmit` function that the push and tick methods can use to send messages */
+  using TransmitFunction = std::function<void( const TCPSenderMessage& )>;
+
+  /* Push bytes from the outbound stream */
+  void push( const TransmitFunction& transmit );
+
+  /* Time has passed by the given # of milliseconds since the last time the tick() method was called */
+  void tick( uint64_t ms_since_last_tick, const TransmitFunction& transmit );
+
+  // Accessors
+  uint64_t sequence_numbers_in_flight() const;  // How many sequence numbers are outstanding?
+  uint64_t consecutive_retransmissions() const; // How many consecutive *re*transmissions have happened?
+  Writer& writer() { return input_.writer(); }
+  const Writer& writer() const { return input_.writer(); }
+
+  // Access input stream reader, but const-only (can't read from outside)
+  const Reader& reader() const { return input_.reader(); }
+
+private:
+  // Variables initialized in constructor
+  ByteStream input_;  // 接受接收方消息的ByteStream
+  Wrap32 isn_;
+  uint64_t initial_RTO_ms_;
+
+  TCPSenderMessage make_message( uint64_t seqno, std::string payload, bool SYN, bool FIN = false ) const;
+
+  /*
+    需要添加的变量：
+    - 窗口大小
+    - 已确认的序列
+    - 待发送的下一字节
+    - 未完成字节缓冲区
+    - SYN和FIN标志位，以及是否发送过SYN和FIN的标志位
+    - 计时器
+    - 重传次数
+    - 未完成的序列号总数
+  */
+  uint16_t wnd_size_ { 1 }; // 接收方窗口大小，初始值假定1
+  uint64_t acked_seqno_ {}; // 确认到哪了
+  uint64_t next_seqno_ {};  // 待发送的下一字节
+  bool syn_flag_ {}, fin_flag_ {}, sent_syn_ {}, sent_fin_ {};
+
+  std::queue<TCPSenderMessage> outstanding_bytes_ {}; // 未完成字节缓冲区
+  RetransmissionTimer timer_; // 计时器
+  uint64_t retransmission_cnt_ {};  // 重传次数
+  uint64_t nbytes_in_flight_ {};
+};
+```
+
+```C++
+// tcp_sender.cc
+#include "tcp_sender.hh"
+#include "tcp_config.hh"
+
+using namespace std;
+
+RetransmissionTimer& RetransmissionTimer::active() noexcept {
+  is_active_ = true;
+  return *this;
+}
+
+RetransmissionTimer& RetransmissionTimer::timeout() noexcept {
+  RTO_ <<= 1;
+  return *this;
+}
+
+RetransmissionTimer& RetransmissionTimer::reset() noexcept {
+  time_passed_ = 0;
+  return *this;
+}
+
+RetransmissionTimer& RetransmissionTimer::tick( uint64_t ms_since_last_tick ) noexcept {
+  time_passed_ += is_active_ ? ms_since_last_tick : 0;
+  return *this;
+}
+
+uint64_t TCPSender::sequence_numbers_in_flight() const
+{
+  return nbytes_in_flight_;
+}
+
+uint64_t TCPSender::consecutive_retransmissions() const
+{
+  return retransmission_cnt_;
+}
+
+/*
+  推送函数
+  1. 初始化相关信息，包括接受方窗口大小，fin标志位等；
+  2. 循环从ByteStream中读取数据并组装数据包直到达到窗口上限或没有数据了
+  注意发出FIN后不再发送；
+  3. 封装好消息，判断能否发送FIN，设置相应的标志位
+  4. 发送消息，启用计时器
+*/
+void TCPSender::push( const TransmitFunction& transmit )
+{
+  Reader& bytes_reader = input_.reader();
+  fin_flag_ |= bytes_reader.is_finished();  // 刚建立就关闭（脑子坏掉了吧）
+  if ( sent_fin_ ) // 如果已经发送过了fin则后续不再发送任何内容
+    return;
+
+  const size_t window_size = wnd_size_ == 0 ? 1 : wnd_size_;  // 初始化接收方窗口大小
+  // 循环组装数据报，当窗口达到上限或没有数据可读，并且发出FIN后不会再尝试组装
+  for ( string payload {}; nbytes_in_flight_ < window_size && !sent_fin_; payload.clear() ) {
+    string_view bytes_view = bytes_reader.peek();
+    // 流为空、不需要发出FIN、已经发送了连接请求
+    if ( bytes_view.empty() && !fin_flag_ && sent_syn_ )
+      break;
+    // 从流中读取数据，组装报文，直到达到文件长度限制或窗口上限
+    while ( payload.size() + nbytes_in_flight_ + ( !sent_syn_ ) < window_size
+            && payload.size() < TCPConfig::MAX_PAYLOAD_SIZE ) {
+      if ( bytes_view.empty() || fin_flag_ )  // 没有数据读了或者关闭了
+        break;
+
+      // 当前分组超过限制则需要截断
+      if ( const uint64_t available_size = min( TCPConfig::MAX_PAYLOAD_SIZE,
+           window_size - ( payload.size() + nbytes_in_flight_ + ( !sent_syn_ ) ) );
+           bytes_view.size() > available_size )
+        bytes_view.remove_suffix( bytes_view.size() - available_size );
+
+      payload.append( bytes_view );
+      bytes_reader.pop( bytes_view.size() );
+      // 检查流是否关闭
+      fin_flag_ |= bytes_reader.is_finished();
+      bytes_view = bytes_reader.peek(); // 获取下一组数据
+    }
+  // 封装消息
+  auto& msg = outstanding_bytes_.emplace(
+    make_message( next_seqno_, move( payload ), sent_syn_ ? syn_flag_ : true, fin_flag_ ) );
+  
+  // 若已经发送了syn，则后续可能重发也可能不重发，看syn_flag_
+  const size_t margin = sent_syn_ ? syn_flag_ : 0;
+  // 发不出去FIN
+  if ( fin_flag_ && ( msg.sequence_length() - margin ) + nbytes_in_flight_ > window_size )
+    msg.FIN = false;
+  else if ( fin_flag_ )  // 否则发送
+    sent_fin_ = true;
+  // 注意这里的细节，相当细节，防止最后加上SYN不对劲
+  const size_t correct_size = msg.sequence_length() - margin;
+
+  nbytes_in_flight_ += correct_size;
+  next_seqno_ += correct_size;
+  sent_syn_ = true;
+  transmit( msg );
+  if ( correct_size != 0 )
+    timer_.active();
+  }
+}
+
+TCPSenderMessage TCPSender::make_message( uint64_t seqno, string payload, bool SYN, bool FIN ) const
+{
+  return {
+    .seqno = Wrap32::wrap( seqno, isn_ ),
+    .SYN = SYN,
+    .payload = move( payload ),
+    .FIN = FIN,
+    .RST = input_.reader().has_error()
+  };
+
+}
+
+TCPSenderMessage TCPSender::make_empty_message() const
+{
+  return make_message( next_seqno_, {}, false );
+}
+
+/*
+  接收发送方的确认消息：
+  1. 检查ackno是否存在或者越界，获取window size的情况
+  2. 根据确认号处理未完成缓冲区
+  3. 处理计时器重置问题
+*/
+void TCPSender::receive( const TCPReceiverMessage& msg )
+{
+  // 基本的错误情况
+  wnd_size_ = msg.window_size;
+  if ( !msg.ackno.has_value() ) { // first package without ackno
+    if ( wnd_size_ == 0 )
+      input_.set_error();
+    return;
+  }
+  // 发送方期待的下一字节
+  const uint64_t excepting_seqno = msg.ackno->unwrap( isn_, next_seqno_ );
+  if ( excepting_seqno > next_seqno_ )  // 这还没发你就确认了？
+    return;
+
+  // 标记是否有新确认的序列号
+  bool is_acknowledged = false;
+  // 循环获取未完成缓冲区的内容
+  while ( !outstanding_bytes_.empty() ) {
+    auto& buffered_msg = outstanding_bytes_.front();
+    // 期待的下一字节不足以将这条消息覆盖，则不处理
+    if ( const uint64_t final_seqno = acked_seqno_ + buffered_msg.sequence_length() - buffered_msg.SYN;
+         excepting_seqno <= acked_seqno_ || excepting_seqno < final_seqno )
+        break;
+    // 走到这说明有新的确认到达
+    is_acknowledged = true;
+    nbytes_in_flight_ -= buffered_msg.sequence_length() - syn_flag_;
+    acked_seqno_ += buffered_msg.sequence_length() - syn_flag_;
+    // syn是否确认
+    syn_flag_ = sent_syn_ ? syn_flag_ : excepting_seqno <= next_seqno_;
+    outstanding_bytes_.pop();
+  }
+  if ( is_acknowledged ) {
+    // 没有待确认的了，只重置计时器
+    if ( outstanding_bytes_.empty() )
+      timer_ = RetransmissionTimer( initial_RTO_ms_ );
+    else
+      timer_ = move( RetransmissionTimer( initial_RTO_ms_ ).active() );
+    retransmission_cnt_ = 0;
+  }
+}
+
+/**tick函数
+ * 1. 超时则重传
+ * 2. 如果window size为0则只重置计时器
+ * 3. 否则RTO变为两倍
+ * 4. 增加重传次数
+ */
+void TCPSender::tick( uint64_t ms_since_last_tick, const TransmitFunction& transmit )
+{
+  if ( timer_.tick( ms_since_last_tick ).is_expired() ) {
+    transmit( outstanding_bytes_.front() );
+    if ( wnd_size_ == 0 )
+      timer_.reset();
+    else
+      timer_.timeout().reset();
+    ++retransmission_cnt_;
+  }
+}
+```
+
+相信以后的我看代码也能看明白，抽象点罢了，加油。
+
+两部分都完成后在minnow目录下执行`cmake --build build --target check3`，下面附上通过结果：
+
+```bash
+Test project /home/sniffstherose/cs144/minnow/build
+      Start  1: compile with bug-checkers
+ 1/36 Test  #1: compile with bug-checkers ........   Passed   23.90 sec
+      Start  3: byte_stream_basics
+ 2/36 Test  #3: byte_stream_basics ...............   Passed    0.07 sec
+      Start  4: byte_stream_capacity
+ 3/36 Test  #4: byte_stream_capacity .............   Passed    0.06 sec
+      Start  5: byte_stream_one_write
+ 4/36 Test  #5: byte_stream_one_write ............   Passed    0.06 sec
+      Start  6: byte_stream_two_writes
+ 5/36 Test  #6: byte_stream_two_writes ...........   Passed    0.06 sec
+      Start  7: byte_stream_many_writes
+ 6/36 Test  #7: byte_stream_many_writes ..........   Passed    0.10 sec
+      Start  8: byte_stream_stress_test
+ 7/36 Test  #8: byte_stream_stress_test ..........   Passed    0.18 sec
+      Start  9: reassembler_single
+ 8/36 Test  #9: reassembler_single ...............   Passed    0.06 sec
+      Start 10: reassembler_cap
+ 9/36 Test #10: reassembler_cap ..................   Passed    0.06 sec
+      Start 11: reassembler_seq
+10/36 Test #11: reassembler_seq ..................   Passed    0.06 sec
+      Start 12: reassembler_dup
+11/36 Test #12: reassembler_dup ..................   Passed    0.08 sec
+      Start 13: reassembler_holes
+12/36 Test #13: reassembler_holes ................   Passed    0.05 sec
+      Start 14: reassembler_overlapping
+13/36 Test #14: reassembler_overlapping ..........   Passed    0.06 sec
+      Start 15: reassembler_win
+14/36 Test #15: reassembler_win ..................   Passed    0.29 sec
+      Start 16: wrapping_integers_cmp
+15/36 Test #16: wrapping_integers_cmp ............   Passed    0.02 sec
+      Start 17: wrapping_integers_wrap
+16/36 Test #17: wrapping_integers_wrap ...........   Passed    0.01 sec
+      Start 18: wrapping_integers_unwrap
+17/36 Test #18: wrapping_integers_unwrap .........   Passed    0.01 sec
+      Start 19: wrapping_integers_roundtrip
+18/36 Test #19: wrapping_integers_roundtrip ......   Passed    1.43 sec
+      Start 20: wrapping_integers_extra
+19/36 Test #20: wrapping_integers_extra ..........   Passed    0.31 sec
+      Start 21: recv_connect
+20/36 Test #21: recv_connect .....................   Passed    0.07 sec
+      Start 22: recv_transmit
+21/36 Test #22: recv_transmit ....................   Passed    0.30 sec
+      Start 23: recv_window
+22/36 Test #23: recv_window ......................   Passed    0.08 sec
+      Start 24: recv_reorder
+23/36 Test #24: recv_reorder .....................   Passed    0.08 sec
+      Start 25: recv_reorder_more
+24/36 Test #25: recv_reorder_more ................   Passed    0.81 sec
+      Start 26: recv_close
+25/36 Test #26: recv_close .......................   Passed    0.08 sec
+      Start 27: recv_special
+26/36 Test #27: recv_special .....................   Passed    0.09 sec
+      Start 28: send_connect
+27/36 Test #28: send_connect .....................   Passed    0.07 sec
+      Start 29: send_transmit
+28/36 Test #29: send_transmit ....................   Passed    0.44 sec
+      Start 30: send_retx
+29/36 Test #30: send_retx ........................   Passed    0.08 sec
+      Start 31: send_window
+30/36 Test #31: send_window ......................   Passed    0.15 sec
+      Start 32: send_ack
+31/36 Test #32: send_ack .........................   Passed    0.07 sec
+      Start 33: send_close
+32/36 Test #33: send_close .......................   Passed    0.08 sec
+      Start 34: send_extra
+33/36 Test #34: send_extra .......................   Passed    0.12 sec
+      Start 37: compile with optimization
+34/36 Test #37: compile with optimization ........   Passed    2.60 sec
+      Start 38: byte_stream_speed_test
+             ByteStream throughput: 25.20 Gbit/s
+35/36 Test #38: byte_stream_speed_test ...........   Passed    0.11 sec
+      Start 39: reassembler_speed_test
+             Reassembler throughput: 15.39 Gbit/s
+36/36 Test #39: reassembler_speed_test ...........   Passed    0.14 sec
+
+100% tests passed, 0 tests failed out of 36
+
+Total Test time (real) =  32.52 sec
+```
+
+最后git提交一下代码，即可进入下一阶段😎。
